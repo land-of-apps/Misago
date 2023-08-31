@@ -1,0 +1,85 @@
+name: appmap-analysis
+
+on:
+  pull_request:
+
+jobs:
+  record-appmaps:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+
+    services:
+        postgres:
+          image: postgres:15
+          env:
+            POSTGRES_USER: misago
+            POSTGRES_PASSWORD: misago
+            POSTGRES_DB: misago
+          ports:
+            - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Install AppMap tools
+        id: install-appmap
+        uses: getappmap/install-action@v1
+        with:
+          project-type: pip
+          build-file: "requirements.txt"
+
+      - name: Pytest
+        env:
+          DJANGO_SETTINGS_MODULE: devproject.test_settings
+          POSTGRES_DB: misago
+          POSTGRES_USER: misago
+          POSTGRES_PASSWORD: misago
+          POSTGRES_HOST: localhost
+        run: | 
+          pytest --no-cov --splits 18 --group ${{ matrix.group }}
+
+      - name: Set matrix group env var with zero-based numbering
+        if: always()
+        env:
+          NUM: ${{ matrix.group }}
+        run: |
+          echo "ARCHIVE_ID=$(($NUM - 1))" >> $GITHUB_ENV
+      
+      - name: Save AppMap archive
+        if: always()
+        uses: getappmap/archive-action@v1
+        with:
+          archive-id: ${{ env.ARCHIVE_ID }}
+
+  appmap-analysis:
+    if: always()
+    runs-on: ubuntu-latest
+
+    needs: [ record-appmaps ]
+    
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install AppMap tools
+        uses: getappmap/install-action@v1
+        with:
+          install-appmap-library: false
+      
+      - name: Merge AppMaps
+        uses: getappmap/archive-action/merge@v1
+        with:
+          revision: ${{ github.event.pull_request.base.sha }}
+          archive-count: 18
+
+      - name: Archive AppMaps
+        uses: getappmap/archive-action@v1
+        with:
+          revision: ${{ github.event.pull_request.base.sha }}
