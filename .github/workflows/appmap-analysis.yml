@@ -2,6 +2,11 @@ name: appmap-analysis
 
 on:
   pull_request:
+  push:
+    branches:
+      - master
+  schedule:
+    - cron: '0 0 * * 0'
 
 jobs:
   record-appmaps:
@@ -48,10 +53,11 @@ jobs:
 
       - name: Set matrix group env var with zero-based numbering
         if: always()
+        id: set-matrix-group-var
         env:
           NUM: ${{ matrix.group }}
         run: |
-          echo "ARCHIVE_ID=$(($NUM - 1))" >> $GITHUB_ENV
+          echo "ARCHIVE_ID=$(($NUM - 1))" >> $GITHUB_OUTPUT
       
       - name: Delete Request AppMaps
         if: always()
@@ -62,27 +68,16 @@ jobs:
         if: always()
         uses: getappmap/archive-action@v1
         with:
-          archive-id: ${{ env.ARCHIVE_ID }}
+          archive-id: ${{ steps.set-matrix-group-var.outputs.ARCHIVE_ID }}
 
   appmap-analysis:
     if: always()
-    runs-on: ubuntu-latest
-    needs: [ record-appmaps ]
-
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install AppMap tools
-        uses: getappmap/install-action@v1
-        with:
-          install-appmap-library: false
-      
-      - name: Merge AppMaps
-        uses: getappmap/archive-action/merge@v1
-        with:
-          revision: ${{ github.event.pull_request.base.sha }}
-          archive-count: 17
-
-      - name: Archive AppMaps
-        uses: getappmap/archive-action@v1
-        with:
-          revision: ${{ github.event.pull_request.base.sha }}
+    needs: [record-appmaps]
+    uses: getappmap/analyze-action/.github/workflows/appmap-analysis-matrix.yml@v1
+    with:
+      archive-count: 17
+    permissions:
+      actions: read
+      contents: read
+      checks: write
+      pull-requests: write
