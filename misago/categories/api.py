@@ -15,3 +15,4 @@ class CategoryViewSet(viewsets.ViewSet):
                 many=True,
             ).data
         )
+
