@@ -3,7 +3,7 @@ name: Appmap Analysis
 on:
   push:
     branches:
-      - master
+      - appmap_analysis
   pull_request:
 
 jobs:
